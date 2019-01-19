@@ -5,12 +5,17 @@
 
 open Async
 
-val reporter :
+val udp_reporter :
   uri:Uri.t -> token:string -> Logs.reporter Deferred.t
-(** [ovh_reporter ~uri ~token] is a reporter based on
-    [Logs_async_reporter.reporter] that additionally reports to OVH's
-    Logs Data Platform at [uri] with OVH token [token] using capnp over
-    TCP/SSL. *)
+(** [udp_reporter ~uri ~token] is a reporter that writes to disk in
+    RFC5424 format (syslog) and additionally reports to OVH's Logs Data
+    Platform at [uri] with OVH token [token] over UDP. *)
+
+val tcp_tls_reporter :
+  uri:Uri.t -> token:string -> Logs.reporter Deferred.t
+(** [tcp_tls_reporter ~uri ~token] is a reporter that writes to disk in
+    RFC5424 format (syslog) and additionally reports to OVH's Logs Data
+    Platform at [uri] with OVH token [token] over TCP/SSL. *)
 
 (*---------------------------------------------------------------------------
    Copyright (c) 2019 Vincent Bernardoff

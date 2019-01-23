@@ -88,9 +88,11 @@ let send_udp uri =
     end ;
     send_fun fd (Iobuf.of_string msg)
 
-let make_reporter make_f ~uri ~token =
+let make_reporter make_f ?(defs=[]) ~uri ~token () =
   let ovhtag = Logs.Tag.(add ovhtoken token empty) in
-  let ovhtag = "ovh", ovhtag in
+  let ovhtag = Rfc5424.create_sd_element
+      ~defs:[Rfc5424.Tag.string ovhtoken]
+      ~section:"ovh" ~tags:ovhtag in
   let hostname = Unix.gethostname () in
   let procid = Pid.to_string (Unix.getpid ()) in
   let pf = Rfc5424.create ~hostname ~procid in
@@ -99,14 +101,16 @@ let make_reporter make_f ~uri ~token =
   make_f uri >>= fun f ->
   let report src level ~over k msgf =
     let m ?header ?(tags=Logs.Tag.empty) fmt =
-      let tags =
+      let othertags =
+        Rfc5424.create_sd_element ~defs ~section:"logs" ~tags in
+      let structured_data =
         if Logs.Tag.is_empty tags
         then [ovhtag]
-        else [ovhtag; "logs", tags] in
+        else [ovhtag; othertags] in
       let pf = pf
         ~severity:(Rfc5424.severity_of_level level)
         ~app_name:(Logs.Src.name src)
-        ~tags ~ts:(Ptime_clock.now ()) in
+        ~structured_data ~ts:(Ptime_clock.now ()) in
       let k msg =
         don't_wait_for @@
         Monitor.protect

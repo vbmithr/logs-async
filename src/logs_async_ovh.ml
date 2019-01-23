@@ -88,33 +88,97 @@ let send_udp uri =
     end ;
     send_fun fd (Iobuf.of_string msg)
 
-let make_reporter make_f ?(defs=[]) ~uri ~token () =
-  let ovhtag = Logs.Tag.(add ovhtoken token empty) in
-  let ovhtag = Rfc5424.create_sd_element
-      ~defs:[Rfc5424.Tag.string ovhtoken]
-      ~section:"ovh" ~tags:ovhtag in
+let maybe_send f uri =
+  let stdout = Lazy.force Writer.stdout in
+  let stderr = Lazy.force Writer.stderr in
+  match uri with
+  | None ->
+    Deferred.return begin
+      fun level msg ->
+        let msg = Format.asprintf "%a@." Rfc5424.pp msg in
+        begin match level with
+          | Logs.App -> Writer.write stdout msg
+          | _ -> Writer.write stderr msg
+        end ;
+        Deferred.unit
+    end
+  | Some (uri, _) -> f uri
+
+let warp10 (type a) (t:a Rfc5424.Tag.typ) (v:a) =
+  match t with
+  | String -> Warp10.String v
+  | Bool   -> Warp10.Bool v
+  | Float  -> Warp10.Double v
+  | I64    -> Warp10.Long v
+  | U64    -> Warp10.Long (Uint64.to_int64 v)
+  | U      -> Warp10.Bool true
+
+let warp10_of_tags defs tags =
+  let open Rfc5424 in
+  let q = Queue.create () in
+  List.iter defs ~f:begin fun ((Tag.Dyn (t, d)) as tydef) ->
+    match Tag.find t tydef tags with
+    | None -> ()
+    | Some (_, None) -> ()
+    | Some (d, Some v) ->
+      Warp10.create ~name:(Logs.Tag.name d) (warp10 t v) |>
+      Queue.enqueue q
+  end ;
+  q
+
+let make_reporter ?(defs=[]) ?logs ?metrics make_f =
+  let p =
+    Option.map metrics begin fun (uri, token) ->
+      let warp10_r, warp10_w = Pipe.create () in
+      Warp10_async.record ~uri ~token warp10_r ;
+      warp10_w
+    end in
+  let send_metrics_from_tags tags =
+    match p with
+    | Some p when (not (Pipe.is_closed p)) -> begin
+        Monitor.try_with_or_error begin fun () ->
+          Pipe.transfer_in p ~from:(warp10_of_tags defs tags)
+        end >>= function
+        | Error e ->
+          Logs_async.err (fun m -> m "%a" Error.pp e)
+        | Ok () -> Deferred.unit
+      end
+    | _ -> Deferred.unit in
+  let tokens =
+    match logs with
+    | None -> Logs.Tag.empty
+    | Some (_, token) -> Logs.Tag.(add ovhtoken token empty) in
+  let tokens =
+    if Logs.Tag.is_empty tokens then []
+    else
+      [Rfc5424.create_sd_element
+         ~defs:[Rfc5424.Tag.string ovhtoken]
+         ~section:"tokens" ~tags:tokens] in
   let hostname = Unix.gethostname () in
   let procid = Pid.to_string (Unix.getpid ()) in
   let pf = Rfc5424.create ~hostname ~procid in
   let stdout = Lazy.force Writer.stdout in
   let stderr = Lazy.force Writer.stderr in
-  make_f uri >>= fun f ->
+  make_f >>= fun f ->
   let report src level ~over k msgf =
     let m ?header ?(tags=Logs.Tag.empty) fmt =
       let othertags =
         Rfc5424.create_sd_element ~defs ~section:"logs" ~tags in
       let structured_data =
         if Logs.Tag.is_empty tags
-        then [ovhtag]
-        else [ovhtag; othertags] in
+        then tokens
+        else othertags :: tokens in
       let pf = pf
         ~severity:(Rfc5424.severity_of_level level)
         ~app_name:(Logs.Src.name src)
         ~structured_data ~ts:(Ptime_clock.now ()) in
       let k msg =
         don't_wait_for @@
-        Monitor.protect
-          (fun () -> f level (pf ~msg ())) ~finally:begin fun () ->
+        Monitor.protect begin fun () ->
+          send_metrics_from_tags tags >>= fun () ->
+          f level (pf ~msg ())
+        end
+          ~finally:begin fun () ->
           Writer.flushed stdout >>= fun () ->
           Writer.flushed stderr >>| fun () ->
           over ()
@@ -126,8 +190,11 @@ let make_reporter make_f ?(defs=[]) ~uri ~token () =
   in
   Deferred.return { Logs.report = report }
 
-let udp_reporter = make_reporter send_udp
-let tcp_tls_reporter = make_reporter send_tcp_tls
+let udp_reporter ?defs ?logs ?metrics () =
+  make_reporter ?defs ?logs ?metrics (maybe_send send_udp logs)
+
+let tcp_tls_reporter ?defs ?logs ?metrics () =
+  make_reporter (maybe_send send_tcp_tls logs)
 
 (*---------------------------------------------------------------------------
    Copyright (c) 2019 Vincent Bernardoff

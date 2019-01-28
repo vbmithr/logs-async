@@ -155,6 +155,7 @@ let make_reporter ?(defs=[]) ?logs ?metrics make_f =
          ~defs:[Rfc5424.Tag.string ovhtoken]
          ~section:"tokens" ~tags:tokens] in
   let hostname = Unix.gethostname () in
+  let app_name = Filename.basename Sys.executable_name in
   let procid = Pid.to_string (Unix.getpid ()) in
   let pf = Rfc5424.create ~hostname ~procid in
   let stdout = Lazy.force Writer.stdout in
@@ -170,7 +171,7 @@ let make_reporter ?(defs=[]) ?logs ?metrics make_f =
         else othertags :: tokens in
       let pf = pf
         ~severity:(Rfc5424.severity_of_level level)
-        ~app_name:(Logs.Src.name src)
+        ~app_name:(app_name ^ "." ^ Logs.Src.name src)
         ~structured_data ~ts:(Ptime_clock.now ()) in
       let k msg =
         don't_wait_for @@

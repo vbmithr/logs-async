@@ -3,6 +3,7 @@
    Distributed under the ISC license, see terms at the end of the file.
   ---------------------------------------------------------------------------*)
 
+open Core_kernel
 open Async
 
 let reporter () =
@@ -32,6 +33,28 @@ let reporter () =
     reporter.Logs.report src level ~over:(fun () -> ()) k msgf;
   in
   { Logs.report = report }
+
+let level_arg =
+  let complete _ ~part =
+    List.filter ~f:(String.is_prefix ~prefix:part)
+      ["app"; "error"; "warning"; "info"; "debug"] in
+  Command.Arg_type.create ~complete begin fun s ->
+    match Logs.level_of_string s with
+    | Ok l -> l
+    | Error (`Msg msg) -> failwithf "Unknown level %s" msg ()
+  end
+
+let set_level_via_param src =
+  let open Command.Param in
+  map
+    (flag "log-level" (optional level_arg) ~doc:"LEVEL The log level")
+    ~f:begin function
+      | None -> ()
+      | Some l ->
+        match src with
+        | None -> Logs.set_level ~all:true l
+        | Some src -> Logs.Src.set_level src l
+    end
 
 (*---------------------------------------------------------------------------
    Copyright (c) 2019 Vincent Bernardoff

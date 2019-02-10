@@ -72,7 +72,7 @@ let send_udp uri =
       ~host:(Uri.host_with_default ~default:"" uri)
       [AI_SOCKTYPE SOCK_DGRAM] >>= function
     | { ai_addr = ADDR_INET (h, port) ; _ } :: _ ->
-      Socket.connect sock (Socket.Address.Inet.create h port)
+      Socket.connect sock (Socket.Address.Inet.create h ~port)
     | _ -> failwith "ovh_reporter: name resolve failed"
   end >>| fun sock ->
   let fd = Socket.fd sock in
@@ -116,7 +116,7 @@ let warp10 (type a) (t:a Rfc5424.Tag.typ) (v:a) =
 let warp10_of_tags defs tags =
   let open Rfc5424 in
   let q = Queue.create () in
-  List.iter defs ~f:begin fun ((Tag.Dyn (t, d)) as tydef) ->
+  List.iter defs ~f:begin fun ((Tag.Dyn (t, _d)) as tydef) ->
     match Tag.find t tydef tags with
     | None -> ()
     | Some (_, None) -> ()
@@ -128,7 +128,7 @@ let warp10_of_tags defs tags =
 
 let make_reporter ?(defs=[]) ?logs ?metrics make_f =
   let p =
-    Option.map metrics begin fun (uri, token) ->
+    Option.map metrics ~f:begin fun (uri, token) ->
       let warp10_r, warp10_w = Pipe.create () in
       Warp10_async.record ~uri ~token warp10_r ;
       warp10_w
@@ -162,7 +162,7 @@ let make_reporter ?(defs=[]) ?logs ?metrics make_f =
   let stderr = Lazy.force Writer.stderr in
   make_f >>= fun f ->
   let report src level ~over k msgf =
-    let m ?header ?(tags=Logs.Tag.empty) fmt =
+    let m ?header:_ ?(tags=Logs.Tag.empty) fmt =
       let othertags =
         Rfc5424.create_sd_element ~defs ~section:"logs" ~tags in
       let structured_data =
@@ -195,7 +195,7 @@ let udp_reporter ?defs ?logs ?metrics () =
   make_reporter ?defs ?logs ?metrics (maybe_send send_udp logs)
 
 let tcp_tls_reporter ?defs ?logs ?metrics () =
-  make_reporter (maybe_send send_tcp_tls logs)
+  make_reporter ?defs ?logs ?metrics (maybe_send send_tcp_tls logs)
 
 (*---------------------------------------------------------------------------
    Copyright (c) 2019 Vincent Bernardoff

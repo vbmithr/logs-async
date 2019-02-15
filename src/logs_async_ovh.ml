@@ -106,12 +106,12 @@ let maybe_send f uri =
 
 let warp10 (type a) (t:a Rfc5424.Tag.typ) (v:a) =
   match t with
-  | String -> Warp10.String v
-  | Bool   -> Warp10.Bool v
-  | Float  -> Warp10.Double v
-  | I64    -> Warp10.Long v
-  | U64    -> Warp10.Long (Uint64.to_int64 v)
-  | U      -> Warp10.Bool true
+  | Rfc5424.Tag.String -> Warp10.String v
+  | Rfc5424.Tag.Bool   -> Warp10.Bool v
+  | Rfc5424.Tag.Float  -> Warp10.Double v
+  | Rfc5424.Tag.I64    -> Warp10.Long v
+  | Rfc5424.Tag.U64    -> Warp10.Long (Uint64.to_int64 v)
+  | Rfc5424.Tag.U      -> Warp10.Bool true
 
 let warp10_of_tags defs tags =
   let open Rfc5424 in

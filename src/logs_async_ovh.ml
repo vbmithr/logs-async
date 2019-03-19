@@ -6,6 +6,17 @@
 open Core
 open Async
 
+let uri_token_arg = Command.Arg_type.create begin fun s ->
+    match String.split s ~on:',' with
+    | uri :: token :: _ -> Uri.of_string uri, token
+    | _ -> invalid_arg "uri_token"
+  end
+
+let ovh_logs =
+  let open Command.Param in
+  flag "ovh-logs" (optional uri_token_arg)
+    ~doc:"url,token Credentials for OVH log service"
+
 let ovhtoken =
   Logs.Tag.def ~doc:"OVH id token" "X-OVH-TOKEN" Format.pp_print_string
 

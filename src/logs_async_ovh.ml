@@ -86,18 +86,20 @@ let send_udp uri =
       Socket.connect sock (Socket.Address.Inet.create h ~port)
     | _ -> failwith "ovh_reporter: name resolve failed"
   end >>| fun sock ->
-  let fd = Socket.fd sock in
-  let send_fun =
-    match Udp.send () with
-    | Ok a -> a
-    | Error err -> raise (Error.to_exn err) in
+  let fd = Fd.file_descr_exn (Socket.fd sock) in
+  let write_iobuf =
+    match Iobuf.send_nonblocking_no_sigpipe () with
+    | Error _e -> failwith "send_fun"
+    | Ok f -> f in
   fun level msg ->
     let msg = Format.asprintf "%a@." Rfc5424.pp msg in
     begin match level with
       | Logs.App -> Writer.write stdout msg
       | _ -> Writer.write stderr msg
     end ;
-    send_fun fd (Iobuf.of_string msg)
+    let iobuf = Iobuf.of_string msg in
+    let _ = write_iobuf iobuf fd in
+    Deferred.unit
 
 let maybe_send f uri =
   let stdout = Lazy.force Writer.stdout in

@@ -185,12 +185,12 @@ let make_reporter ?(defs=[]) ?logs ?metrics make_f =
       let pf = pf
         ~severity:(Rfc5424.severity_of_level level)
         ~app_name:(app_name ^ "." ^ Logs.Src.name src)
-        ~structured_data ~ts:(Ptime_clock.now ()) in
+        ~structured_data in
       let k msg =
         don't_wait_for @@
         Monitor.protect begin fun () ->
           send_metrics_from_tags tags >>= fun () ->
-          f level (pf ~msg ())
+          f level (pf ~ts:(Ptime_clock.now ()) ~msg:(`Ascii msg) ())
         end
           ~finally:begin fun () ->
           Writer.flushed stdout >>= fun () ->

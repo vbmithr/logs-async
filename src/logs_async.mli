@@ -18,7 +18,6 @@
 (** {1 Log functions} *)
 
 open Async_kernel
-open Result
 
 type 'a log = ('a, unit Deferred.t) Logs.msgf -> unit Deferred.t
 (** The type for Async log functions. The returned thread only proceeds

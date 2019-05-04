@@ -10,8 +10,7 @@ val ovh_logs : (Uri.t * string) option Command.Param.t
 
 val udp_reporter :
   ?defs:Rfc5424.Tag.tydef list ->
-  ?logs:(Uri.t * string) ->
-  ?metrics:(Uri.t * string) ->
+  ?logs:Uri.t -> ?metrics:Uri.t ->
   unit -> Logs.reporter Deferred.t
 (** [udp_reporter ~uri ~token] is a reporter that writes to disk in
     RFC5424 format (syslog) and additionally reports to OVH's Logs Data
@@ -19,8 +18,7 @@ val udp_reporter :
 
 val tcp_tls_reporter :
   ?defs:Rfc5424.Tag.tydef list ->
-  ?logs:(Uri.t * string) ->
-  ?metrics:(Uri.t * string) ->
+  ?logs:Uri.t -> ?metrics:Uri.t ->
   unit -> Logs.reporter Deferred.t
 (** [tcp_tls_reporter ~uri ~token] is a reporter that writes to disk in
     RFC5424 format (syslog) and additionally reports to OVH's Logs Data

@@ -105,6 +105,7 @@ let maybe_send f uri =
   let stdout = Lazy.force Writer.stdout in
   let stderr = Lazy.force Writer.stderr in
   match uri with
+  | Some uri -> f (Uri.with_userinfo uri None)
   | None ->
     Deferred.return begin
       fun level msg ->
@@ -115,7 +116,6 @@ let maybe_send f uri =
         end ;
         Deferred.unit
     end
-  | Some (uri, _) -> f uri
 
 let warp10 (type a) (t:a Rfc5424.Tag.typ) (v:a) =
   match t with
@@ -141,9 +141,9 @@ let warp10_of_tags defs tags =
 
 let make_reporter ?(defs=[]) ?logs ?metrics make_f =
   let p =
-    Option.map metrics ~f:begin fun (uri, token) ->
+    Option.map metrics ~f:begin fun uri ->
       let warp10_r, warp10_w = Pipe.create () in
-      Warp10_async.record ~uri ~token warp10_r ;
+      Warp10_async.record uri warp10_r ;
       warp10_w
     end in
   let send_metrics_from_tags tags =
@@ -157,10 +157,14 @@ let make_reporter ?(defs=[]) ?logs ?metrics make_f =
         | Ok () -> Deferred.unit
       end
     | _ -> Deferred.unit in
+  let token =
+    let open Option.Monad_infix in
+    logs >>= Uri.user >>| fun token ->
+    Logs.Tag.(add ovhtoken token empty) in
   let tokens =
-    match logs with
+    match token with
     | None -> Logs.Tag.empty
-    | Some (_, token) -> Logs.Tag.(add ovhtoken token empty) in
+    | Some tags -> tags in
   let tokens =
     if Logs.Tag.is_empty tokens then []
     else

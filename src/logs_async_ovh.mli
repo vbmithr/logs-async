@@ -5,9 +5,6 @@
 
 open Async
 
-val uri_token_arg : (Uri.t * string) Command.Arg_type.t
-val ovh_logs : (Uri.t * string) option Command.Param.t
-
 val udp_reporter :
   ?defs:Rfc5424.Tag.tydef list ->
   ?logs:Uri.t -> ?metrics:Uri.t ->

@@ -132,7 +132,7 @@ let make_reporter ?(defs=[]) ?logs ?metrics make_f =
   let p =
     Option.map metrics ~f:begin fun uri ->
       let warp10_r, warp10_w = Pipe.create () in
-      Warp10_async.record uri warp10_r ;
+      don't_wait_for (Warp10_async.record uri warp10_r) ;
       warp10_w
     end in
   let send_metrics_from_tags tags =

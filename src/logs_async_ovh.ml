@@ -176,9 +176,9 @@ let make_reporter ?(defs=[]) ?logs ?metrics make_f =
         then tokens
         else othertags :: tokens in
       let pf = pf
-        ~severity:(Rfc5424.severity_of_level level)
-        ~app_name:(app_name ^ "." ^ Logs.Src.name src)
-        ~structured_data in
+          ~severity:(Rfc5424.severity_of_level level)
+          ~app_name:(app_name ^ "." ^ Logs.Src.name src)
+          ~structured_data in
       let k msg =
         don't_wait_for @@
         Monitor.protect begin fun () ->
@@ -186,10 +186,10 @@ let make_reporter ?(defs=[]) ?logs ?metrics make_f =
           f level (pf ~ts:(Ptime_clock.now ()) ~msg:(`Ascii msg) ())
         end
           ~finally:begin fun () ->
-          Writer.flushed stdout >>= fun () ->
-          Writer.flushed stderr >>| fun () ->
-          over ()
-        end ;
+            Writer.flushed stdout >>= fun () ->
+            Writer.flushed stderr >>| fun () ->
+            over ()
+          end ;
         k () in
       Format.kasprintf k fmt
     in

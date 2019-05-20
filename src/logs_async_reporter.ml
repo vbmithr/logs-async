@@ -44,17 +44,15 @@ let level_arg =
     | Error (`Msg msg) -> failwithf "Unknown level %s" msg ()
   end
 
-let set_level_via_param src =
+let set_level_via_param
+    ?(arg_name="log-level") ?(doc="LEVEL The log level") src =
   let open Command.Param in
-  map
-    (flag "log-level" (optional level_arg) ~doc:"LEVEL The log level")
-    ~f:begin function
-      | None -> ()
-      | Some l ->
-        match src with
-        | None -> Logs.set_level ~all:true l
-        | Some src -> Logs.Src.set_level src l
-    end
+  map (flag arg_name (optional level_arg) ~doc) ~f:begin fun l ->
+    match l, src with
+    | None, _ -> ()
+    | Some l, None -> Logs.set_level ~all:true l
+    | Some l, Some src -> Logs.Src.set_level src l
+  end
 
 (*---------------------------------------------------------------------------
    Copyright (c) 2019 Vincent Bernardoff

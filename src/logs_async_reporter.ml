@@ -20,8 +20,8 @@ let reporter () =
   let report src level ~over k msgf =
     let k () =
       let write () = match level with
-      | Logs.App -> Writer.write stdout (app_flush ())
-      | _ -> Writer.write stderr (dst_flush ()) in
+        | Logs.App -> Writer.write stdout (app_flush ())
+        | _ -> Writer.write stderr (dst_flush ()) in
       let unblock () =
         Writer.flushed stdout >>= fun () ->
         Writer.flushed stderr >>|

@@ -17,9 +17,8 @@ val level_arg : Logs.level option Async.Command.Arg_type.t
 (** Argument type to be used for use in [Command] params. *)
 
 val set_level_via_param :
-  ?arg_name:string -> ?doc:string ->
-  Logs.src option -> unit Async.Command.Param.t
-(** [set_level_via_param src] is a param that sets the level of [src]
+  ?arg_name:string -> ?doc:string ->  Logs.src list -> unit Async.Command.Param.t
+(** [set_level_via_param src] is a param that sets the level of [srcs]
     (or all srcs if [src] is [None]). *)
 
 (*---------------------------------------------------------------------------

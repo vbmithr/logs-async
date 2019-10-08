@@ -50,8 +50,8 @@ let set_level_via_param
   map (flag arg_name (optional level_arg) ~doc) ~f:begin fun l ->
     match l, src with
     | None, _ -> ()
-    | Some l, None -> Logs.set_level ~all:true l
-    | Some l, Some src -> Logs.Src.set_level src l
+    | Some l, [] -> Logs.set_level ~all:true l
+    | Some l, srcs -> List.iter srcs ~f:(fun src -> Logs.Src.set_level src l)
   end
 
 (*---------------------------------------------------------------------------

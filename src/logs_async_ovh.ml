@@ -163,7 +163,9 @@ let make_reporter ?(defs=[]) ?logs ?metrics make_f =
   let hostname = Unix.gethostname () in
   let app_name = Filename.basename Sys.executable_name in
   let procid = Pid.to_string (Unix.getpid ()) in
-  let pf = Rfc5424.create ~hostname ~procid in
+  let pf = Rfc5424.create
+      ?tz_offset_s:(Ptime_clock.current_tz_offset_s ())
+      ~hostname ~procid in
   let stdout = Lazy.force Writer.stdout in
   let stderr = Lazy.force Writer.stderr in
   make_f >>= fun f ->

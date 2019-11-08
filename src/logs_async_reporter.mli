@@ -3,7 +3,8 @@
    Distributed under the ISC license, see terms at the end of the file.
   ---------------------------------------------------------------------------*)
 
-val reporter : unit -> Logs.reporter
+val reporter :
+  ?pp_header:(Logs.level * string option) Fmt.t -> unit -> Logs.reporter
 (** The following reporter will play nice with [Async]'s runtime, it
     will behave synchronously for the log functions of this module and
     asynchronously for those of the {!Logs} module (see {!Logs.sync}).

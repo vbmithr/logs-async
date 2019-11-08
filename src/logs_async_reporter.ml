@@ -6,7 +6,7 @@
 open Core_kernel
 open Async
 
-let reporter () =
+let reporter ?pp_header () =
   let buf_fmt ~like =
     let b = Buffer.create 512 in
     Fmt.with_buffer ~like b,
@@ -14,7 +14,7 @@ let reporter () =
   in
   let app, app_flush = buf_fmt ~like:Fmt.stdout in
   let dst, dst_flush = buf_fmt ~like:Fmt.stderr in
-  let reporter = Logs_fmt.reporter ~app ~dst () in
+  let reporter = Logs_fmt.reporter ?pp_header ~app ~dst () in
   let stdout = Lazy.force Writer.stdout in
   let stderr = Lazy.force Writer.stderr in
   let report src level ~over k msgf =

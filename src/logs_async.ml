@@ -8,13 +8,14 @@ open Async_kernel
 
 type 'a log = ('a, unit Deferred.t) Logs.msgf -> unit Deferred.t
 
-let kmsg k ?(src = Logs.default) level msgf = match Logs.Src.level src with
-| None -> k ()
-| Some level' when level > level' ->
+let kmsg k ?(src = Logs.default) level msgf =
+  match Logs.Src.level src with
+  | None -> k ()
+  | Some level' when level > level' ->
     (if level = Logs.Error then Logs.incr_err_count () else
      if level = Logs.Warning then Logs.incr_warn_count () else ());
     (k ())
-| Some _ ->
+  | Some _ ->
     (if level = Logs.Error then Logs.incr_err_count () else
      if level = Logs.Warning then Logs.incr_warn_count () else ());
     let iv = Ivar.create () in

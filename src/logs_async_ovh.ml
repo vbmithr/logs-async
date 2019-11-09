@@ -9,102 +9,32 @@ open Async
 let ovhtoken =
   Logs.Tag.def ~doc:"OVH id token" "X-OVH-TOKEN" Format.pp_print_string
 
-let send_tcp_tls uri =
-  let stdout = Lazy.force Writer.stdout in
-  let stderr = Lazy.force Writer.stderr in
-  let conn = Mvar.create () in
-  let host = Uri.host_with_default ~default:"" uri in
-  let port = Option.value ~default:0 (Uri.port uri) in
-  let hp = Host_and_port.create ~host ~port in
-  let tcp_hp = Tcp.Where_to_connect.of_host_and_port hp in
-  let rec loop_connect () =
-    Monitor.try_with begin fun () ->
-      Tcp.connect tcp_hp >>= fun (_, r, w) ->
-      let app_to_ssl, app_to_ssl_w = Pipe.create () in
-      let ssl_to_app_r, ssl_to_app = Pipe.create () in
-      let net_to_ssl = Reader.pipe r in
-      let ssl_to_net = Writer.pipe w in
-      begin Async_ssl.Std.Ssl.client
-          ~app_to_ssl ~ssl_to_app
-          ~net_to_ssl ~ssl_to_net () >>= function
-        | Error err ->
-          Format.eprintf "%a" Error.pp err ;
-          Error.raise err
-        | Ok conn -> return conn
-      end >>= fun _ssl_conn ->
-      Mvar.update conn ~f:(fun _ -> app_to_ssl_w) ;
-      Deferred.any [ Reader.close_finished r ;
-                     Writer.close_started w ] >>= fun () ->
-      let _ = Mvar.take_now_exn conn in
-      Pipe.close_read app_to_ssl ;
-      Pipe.close_read ssl_to_app_r ;
-      Pipe.close_read net_to_ssl ;
-      Pipe.close ssl_to_net ;
-      Pipe.close app_to_ssl_w ;
-      Pipe.close ssl_to_app ;
-      begin if not (Reader.is_closed r) then
-          Reader.close r else Deferred.unit
-      end >>= fun () ->
-      begin if not (Writer.is_closed w) then
-          Writer.close w else Deferred.unit
-      end
-    end >>= fun _ ->
-    Clock_ns.after (Time_ns.Span.of_int_sec 3) >>=
-    loop_connect in
-  don't_wait_for @@ loop_connect () ;
-  return @@ fun level msg ->
-  let msg_str = Format.asprintf "%a@." Rfc5424.pp msg in
-  Mvar.value_available conn >>= fun () ->
-  let w = Mvar.peek_exn conn in
-  begin match level with
-    | Logs.App -> Writer.write stdout msg_str
-    | _ -> Writer.write stderr msg_str
-  end ;
-  Pipe.write w msg_str
+let obtain_socket url =
+  Unix.Addr_info.get
+    ?service:(Option.map (Uri.port url) ~f:Int.to_string)
+    ~host:(Uri.host_with_default ~default:"" url)
+    [AI_SOCKTYPE SOCK_DGRAM] >>= function
+  | { ai_addr = ADDR_INET (h, port) ; _ } :: _ ->
+    let sock = Socket.(create Type.udp) in
+    Socket.connect sock (Socket.Address.Inet.create h ~port)
+  | _ -> failwith "ovh_reporter: name resolve failed"
 
-let send_udp uri =
-  let stdout = Lazy.force Writer.stdout in
-  let stderr = Lazy.force Writer.stderr in
-  let service = Option.(Uri.port uri >>| Int.to_string) in
-  let sock = Socket.(create Type.udp) in
-  begin
-    Unix.Addr_info.get ?service
-      ~host:(Uri.host_with_default ~default:"" uri)
-      [AI_SOCKTYPE SOCK_DGRAM] >>= function
-    | { ai_addr = ADDR_INET (h, port) ; _ } :: _ ->
-      Socket.connect sock (Socket.Address.Inet.create h ~port)
-    | _ -> failwith "ovh_reporter: name resolve failed"
-  end >>| fun sock ->
+let fd_writer_of_sock sock =
   let fd = Fd.file_descr_exn (Socket.fd sock) in
-  let write_iobuf =
-    match Iobuf.send_nonblocking_no_sigpipe () with
-    | Error _e -> failwith "send_fun"
-    | Ok f -> f in
-  fun level msg ->
-    let msg = Format.asprintf "%a@." Rfc5424.pp msg in
-    begin match level with
-      | Logs.App -> Writer.write stdout msg
-      | _ -> Writer.write stderr msg
-    end ;
-    let iobuf = Iobuf.of_string msg in
-    let _ = write_iobuf iobuf fd in
-    Deferred.unit
+  match Iobuf.send_nonblocking_no_sigpipe () with
+  | Error e -> Error.raise e
+  | Ok writer -> fd, writer
 
-let maybe_send f uri =
-  let stdout = Lazy.force Writer.stdout in
-  let stderr = Lazy.force Writer.stderr in
-  match uri with
-  | Some uri -> f (Uri.with_userinfo uri None)
-  | None ->
-    Deferred.return begin
-      fun level msg ->
-        let msg = Format.asprintf "%a@." Rfc5424.pp msg in
-        begin match level with
-          | Logs.App -> Writer.write stdout msg
-          | _ -> Writer.write stderr msg
-        end ;
-        Deferred.unit
-    end
+let maybe_send sendf level msg =
+  let msg = Format.asprintf "%a" Rfc5424.pp msg in
+  begin match level with
+    | Logs.App -> print_endline msg
+    | _ -> prerr_endline msg
+  end ;
+  match sendf with
+  | None -> ()
+  | Some (writer, fd) ->
+    ignore (writer (Iobuf.of_string msg) fd)
 
 let warp10 (type a) (t:a Rfc5424.Tag.typ) (v:a) =
   match t with
@@ -128,7 +58,7 @@ let warp10_of_tags defs tags =
   end ;
   q
 
-let make_reporter ?(defs=[]) ?logs ?metrics make_f =
+let make_reporter ?(defs=[]) ?logs ?metrics logf =
   let p =
     Option.map metrics ~f:begin fun uri ->
       let warp10_r, warp10_w = Pipe.create () in
@@ -168,7 +98,7 @@ let make_reporter ?(defs=[]) ?logs ?metrics make_f =
       ~hostname ~procid in
   let stdout = Lazy.force Writer.stdout in
   let stderr = Lazy.force Writer.stderr in
-  make_f >>= fun f ->
+  let report_monitor = Monitor.create () in
   let report src level ~over k msgf =
     let m ?header:_ ?(tags=Logs.Tag.empty) fmt =
       let othertags =
@@ -181,29 +111,32 @@ let make_reporter ?(defs=[]) ?logs ?metrics make_f =
           ~severity:(Rfc5424.severity_of_level level)
           ~app_name:(app_name ^ "." ^ Logs.Src.name src)
           ~structured_data in
-      let k msg =
-        don't_wait_for @@
-        Monitor.protect begin fun () ->
-          send_metrics_from_tags tags >>= fun () ->
-          f level (pf ~ts:(Ptime_clock.now ()) ~msg:(`Ascii msg) ())
-        end
-          ~finally:begin fun () ->
-            Writer.flushed stdout >>= fun () ->
-            Writer.flushed stderr >>| fun () ->
-            over ()
-          end ;
+      let prlog msg =
+        send_metrics_from_tags tags >>= fun () ->
+        logf level
+          (pf ~ts:(Ptime_clock.now ()) ~msg:(`Ascii msg) ()) >>= fun () ->
+        Writer.flushed stdout >>= fun () ->
+        Writer.flushed stderr in
+      let print_log msg =
+        Scheduler.within' ~monitor:report_monitor (fun () -> prlog msg) >>>
+        over ;
         k () in
-      Format.kasprintf k fmt
+      Format.kasprintf print_log fmt
     in
     msgf m
   in
   Deferred.return { Logs.report = report }
 
 let udp_reporter ?defs ?logs ?metrics () =
-  make_reporter ?defs ?logs ?metrics (maybe_send send_udp logs)
-
-let tcp_tls_reporter ?defs ?logs ?metrics () =
-  make_reporter ?defs ?logs ?metrics (maybe_send send_tcp_tls logs)
+  begin match logs with
+    | None -> Deferred.return None
+    | Some url ->
+      obtain_socket url >>| fun sock ->
+      let fd, w = fd_writer_of_sock sock in
+      Some (w, fd)
+  end >>= fun sendf ->
+  make_reporter ?defs ?logs ?metrics
+    (fun l m -> maybe_send sendf l m; Deferred.unit)
 
 (*---------------------------------------------------------------------------
    Copyright (c) 2019 Vincent Bernardoff

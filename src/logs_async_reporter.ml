@@ -6,6 +6,9 @@
 open Core_kernel
 open Async
 
+let pp_systemd_header ppf (l, _) =
+  Format.fprintf ppf "[%a] " Logs.pp_level l
+
 let reporter ?pp_header () =
   let buf_fmt ~like =
     let b = Buffer.create 512 in

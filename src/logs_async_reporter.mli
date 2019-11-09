@@ -3,6 +3,10 @@
    Distributed under the ISC license, see terms at the end of the file.
   ---------------------------------------------------------------------------*)
 
+val pp_systemd_header : (Logs.level * string option) Fmt.t
+(** A header which displays only log level, suited for systemd's
+    journalctl. *)
+
 val reporter :
   ?pp_header:(Logs.level * string option) Fmt.t -> unit -> Logs.reporter
 (** The following reporter will play nice with [Async]'s runtime, it

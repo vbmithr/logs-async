@@ -12,6 +12,11 @@ val udp_reporter :
     RFC5424 format (syslog) and additionally reports to OVH's Logs Data
     Platform at [uri] with OVH token [token] over UDP. *)
 
+val udp_or_systemd_reporter : unit -> Logs.reporter Deferred.t
+(** [upd_or_systemd_reporter] reports to OVH if [OVH_LOGS_URL]
+    environment variable is defined, or reports to stdout with a format
+    suitable for systemd's journalctl otherwise. *)
+
 (*---------------------------------------------------------------------------
    Copyright (c) 2019 Vincent Bernardoff
 

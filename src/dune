@@ -16,4 +16,11 @@
  (public_name logs-async-ovh)
  (modules Logs_async_ovh)
  (optional)
- (libraries ptime.clock.os syslog-rfc5424 uri core async warp10-async))
+ (libraries
+   logs_async_reporter
+   ptime.clock.os
+   syslog-rfc5424
+   uri
+   core
+   async
+   warp10-async))

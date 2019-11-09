@@ -138,6 +138,13 @@ let udp_reporter ?defs ?logs ?metrics () =
   make_reporter ?defs ?logs ?metrics
     (fun l m -> maybe_send sendf l m; Deferred.unit)
 
+let udp_or_systemd_reporter () =
+  match Sys.getenv "OVH_LOGS_URL" with
+  | None ->
+    return Logs_async_reporter.(reporter ~pp_header:pp_systemd_header ())
+  | Some url ->
+    udp_reporter ~logs:(Uri.of_string url) ()
+
 (*---------------------------------------------------------------------------
    Copyright (c) 2019 Vincent Bernardoff
 

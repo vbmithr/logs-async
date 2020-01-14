@@ -1,0 +1,23 @@
+opam-version: "2.0"
+authors: "Vincent Bernardoff <vb@luminar.eu.org>"
+maintainer: "Vincent Bernardoff <vb@luminar.eu.org>"
+homepage: "https://github.com/vbmithr/logs-async"
+bug-reports: "https://github.com/vbmithr/logs-async/issues"
+dev-repo: "git+https://github.com/vbmithr/logs-async"
+doc: "https://vbmithr.github.io/logs-async/doc"
+build: [ "dune" "build" "-j" jobs "-p" name ]
+depends: [
+  "dune" {>= "1.11.4"}
+  "logs" {>= "0.7"}
+  "logs-async-reporter" {= version}
+  "ptime" {>= "0.8.5"}
+  "syslog-rfc5424" {= version}
+  "uri" {>= "3.1.0"}
+  "core" {>= "v0.12.0"}
+  "async" {>= "v0.12.0"}
+  "warp10-async" {= version}
+]
+synopsis: "Logs reporter compatible with Async's threads"
+description: """
+Logs reporter that will play nice with Async's runtime.
+"""

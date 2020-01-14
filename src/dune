@@ -17,6 +17,7 @@
  (modules Logs_async_ovh)
  (optional)
  (libraries
+   logs
    logs_async_reporter
    ptime.clock.os
    syslog-rfc5424

@@ -8,17 +8,15 @@
  (name logs_async_reporter)
  (public_name logs-async-reporter)
  (modules Logs_async_reporter)
- (optional)
  (libraries logs.fmt core_kernel async))
 
 (library
  (name logs_async_ovh)
  (public_name logs-async-ovh)
  (modules Logs_async_ovh)
- (optional)
  (libraries
    logs
-   logs_async_reporter
+   logs-async-reporter
    ptime.clock.os
    syslog-rfc5424
    uri

@@ -9,6 +9,7 @@ build: [ "dune" "build" "-j" jobs "-p" name ]
 depends: [
   "dune" {>= "1.11.4"}
   "logs" {>= "0.7"}
+  "logs-async" {= version}
   "logs-async-reporter" {= version}
   "ptime" {>= "0.8.5"}
   "syslog-rfc5424" {= version}

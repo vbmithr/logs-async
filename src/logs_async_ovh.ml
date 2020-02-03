@@ -36,46 +36,7 @@ let maybe_send sendf level msg =
   | Some (writer, fd) ->
     ignore (writer (Iobuf.of_string msg) fd)
 
-let warp10 (type a) (t:a Rfc5424.Tag.typ) (v:a) =
-  match t with
-  | Rfc5424.Tag.String -> Warp10.String v
-  | Rfc5424.Tag.Bool   -> Warp10.Bool v
-  | Rfc5424.Tag.Float  -> Warp10.Double v
-  | Rfc5424.Tag.I64    -> Warp10.Long v
-  | Rfc5424.Tag.U64    -> Warp10.Long (Uint64.to_int64 v)
-  | Rfc5424.Tag.U      -> Warp10.Bool true
-
-let warp10_of_tags defs tags =
-  let open Rfc5424 in
-  let q = Queue.create () in
-  List.iter defs ~f:begin fun ((Tag.Dyn (t, _d)) as tydef) ->
-    match Tag.find t tydef tags with
-    | None -> ()
-    | Some (_, None) -> ()
-    | Some (d, Some v) ->
-      Warp10.create ~name:(Logs.Tag.name d) (warp10 t v) |>
-      Queue.enqueue q
-  end ;
-  q
-
-let make_reporter ?(defs=[]) ?logs ?metrics logf =
-  let p =
-    Option.map metrics ~f:begin fun uri ->
-      let warp10_r, warp10_w = Pipe.create () in
-      don't_wait_for (Warp10_async.record uri warp10_r) ;
-      warp10_w
-    end in
-  let send_metrics_from_tags tags =
-    match p with
-    | Some p when (not (Pipe.is_closed p)) -> begin
-        Monitor.try_with_or_error begin fun () ->
-          Pipe.transfer_in p ~from:(warp10_of_tags defs tags)
-        end >>= function
-        | Error e ->
-          Logs_async.err (fun m -> m "%a" Error.pp e)
-        | Ok () -> Deferred.unit
-      end
-    | _ -> Deferred.unit in
+let make_reporter ?(defs=[]) ?logs logf =
   let token =
     let open Option.Monad_infix in
     logs >>= Uri.user >>| fun token ->
@@ -112,7 +73,6 @@ let make_reporter ?(defs=[]) ?logs ?metrics logf =
           ~app_name:(app_name ^ "." ^ Logs.Src.name src)
           ~structured_data in
       let prlog msg =
-        send_metrics_from_tags tags >>= fun () ->
         logf level
           (pf ~ts:(Ptime_clock.now ()) ~msg:(`Ascii msg) ()) >>= fun () ->
         Writer.flushed stdout >>= fun () ->
@@ -127,7 +87,7 @@ let make_reporter ?(defs=[]) ?logs ?metrics logf =
   in
   Deferred.return { Logs.report = report }
 
-let udp_reporter ?defs ?logs ?metrics () =
+let udp_reporter ?defs ?logs () =
   begin match logs with
     | None -> Deferred.return None
     | Some url ->
@@ -135,7 +95,7 @@ let udp_reporter ?defs ?logs ?metrics () =
       let fd, w = fd_writer_of_sock sock in
       Some (w, fd)
   end >>= fun sendf ->
-  make_reporter ?defs ?logs ?metrics
+  make_reporter ?defs ?logs
     (fun l m -> maybe_send sendf l m; Deferred.unit)
 
 let udp_or_systemd_reporter () =

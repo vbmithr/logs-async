@@ -6,8 +6,8 @@
 open Async
 
 val udp_reporter :
-  ?defs:Rfc5424.Tag.tydef list -> ?logs:Uri.t -> ?metrics:Uri.t ->
-  unit -> Logs.reporter Deferred.t
+  ?defs:Rfc5424.Tag.tydef list ->
+  ?logs:Uri.t -> unit -> Logs.reporter Deferred.t
 (** [udp_reporter ~logs ()] is a reporter that writes to disk in
     RFC5424 format (syslog) and additionally reports to OVH's Logs Data
     Platform at [uri] with OVH token [token] over UDP. *)

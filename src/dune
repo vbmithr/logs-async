@@ -21,5 +21,4 @@
    syslog-rfc5424
    uri
    core
-   async
-   warp10-async))
+   async))

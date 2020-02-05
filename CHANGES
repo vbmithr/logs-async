@@ -1,4 +1,18 @@
-1.0 (2018-01-15)
-----------------
+1.2 2020-02-05 Paris
+--------------------
+
+- Expose `mk_async_reporter` to enable Async operation of a reporter
+  which uses a [Format.formatter] to log into.
+
+- Some interfaces changes & bugfixes
+
+1.1 2019-04-26 Paris
+--------------------
+
+- Add Command functions (useful for setting log levels from Core
+  [Command] module.
+
+1.0 2019-01-14 Paris
+--------------------
 
 - Initial release.

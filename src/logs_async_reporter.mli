@@ -7,16 +7,21 @@ val pp_systemd_header : (Logs.level * string option) Fmt.t
 (** A header which displays only log level, suited for systemd's
     journalctl. *)
 
+type format_reporter =
+  ?pp_header:(Logs.level * string option) Fmt.t ->
+  ?app:Format.formatter ->
+  ?dst:Format.formatter -> unit -> Logs.reporter
+(** Type of reporter which reports in a [Format.formatter]. *)
+
+val mk_async_reporter :
+  ?pp_header:(Logs.level * string option) Fmt.t ->
+  format_reporter -> Logs.reporter
+(** [mk_async_reporter format_reporter] transforms [format_reporter]
+    in a reporter which uses Async's Writer module for logging. *)
+
 val reporter :
   ?pp_header:(Logs.level * string option) Fmt.t -> unit -> Logs.reporter
-(** The following reporter will play nice with [Async]'s runtime, it
-    will behave synchronously for the log functions of this module and
-    asynchronously for those of the {!Logs} module (see {!Logs.sync}).
-
-    It reuses {!Logs_fmt.reporter} and will produce colorful output if
-    the standard formatters are setup to do so. For example it can be
-    used instead of {!Logs_fmt.reporter} in the {{!Logs_cli.ex}full
-    setup example}. *)
+(** Async enabled version of [Logs_fmt.reporter]. *)
 
 val level_arg : Logs.level option Async.Command.Arg_type.t
 (** Argument type to be used for use in [Command] params. *)

@@ -9,7 +9,12 @@ open Async
 let pp_systemd_header ppf (l, _) =
   Format.fprintf ppf "[%a] " Logs.pp_level l
 
-let reporter ?pp_header () =
+type format_reporter =
+  ?pp_header:(Logs.level * string option) Fmt.t ->
+  ?app:Format.formatter ->
+  ?dst:Format.formatter -> unit -> Logs.reporter
+
+let mk_async_reporter ?pp_header (reporter:format_reporter) =
   let buf_fmt ~like =
     let b = Buffer.create 512 in
     Fmt.with_buffer ~like b,
@@ -17,7 +22,8 @@ let reporter ?pp_header () =
   in
   let app, app_flush = buf_fmt ~like:Fmt.stdout in
   let dst, dst_flush = buf_fmt ~like:Fmt.stderr in
-  let reporter = Logs_fmt.reporter ?pp_header ~app ~dst () in
+  let reporter =
+    reporter ?pp_header ?app:(Some app) ?dst:(Some dst) () in
   let stdout = Lazy.force Writer.stdout in
   let stderr = Lazy.force Writer.stderr in
   let report src level ~over k msgf =
@@ -25,17 +31,20 @@ let reporter ?pp_header () =
       let write () = match level with
         | Logs.App -> Writer.write stdout (app_flush ())
         | _ -> Writer.write stderr (dst_flush ()) in
-      let unblock () =
+      let finally () =
         Writer.flushed stdout >>= fun () ->
         Writer.flushed stderr >>|
         over in
       don't_wait_for @@
-      Monitor.protect (fun () -> write () ; Deferred.unit) ~finally:unblock ;
+      Monitor.protect (fun () -> write () ; Deferred.unit) ~finally ;
       k ()
     in
     reporter.Logs.report src level ~over:(fun () -> ()) k msgf;
   in
   { Logs.report = report }
+
+let reporter ?pp_header () =
+  mk_async_reporter ?pp_header Logs_fmt.reporter
 
 let level_arg =
   let complete _ ~part =

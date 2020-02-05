@@ -36,10 +36,10 @@ let maybe_send sendf level msg =
   | Some (writer, fd) ->
     ignore (writer (Iobuf.of_string msg) fd)
 
-let make_reporter ?(defs=[]) ?logs logf =
+let make_reporter ?(defs=[]) ?ovh_url logf =
   let token =
     let open Option.Monad_infix in
-    logs >>= Uri.user >>| fun token ->
+    ovh_url >>= Uri.user >>| fun token ->
     Logs.Tag.(add ovhtoken token empty) in
   let tokens =
     match token with
@@ -87,23 +87,21 @@ let make_reporter ?(defs=[]) ?logs logf =
   in
   Deferred.return { Logs.report = report }
 
-let udp_reporter ?defs ?logs () =
-  begin match logs with
+let udp_reporter ?defs ?ovh_url () =
+  begin match ovh_url with
     | None -> Deferred.return None
     | Some url ->
       obtain_socket url >>| fun sock ->
       let fd, w = fd_writer_of_sock sock in
       Some (w, fd)
   end >>= fun sendf ->
-  make_reporter ?defs ?logs
+  make_reporter ?defs ?ovh_url
     (fun l m -> maybe_send sendf l m; Deferred.unit)
 
 let udp_or_systemd_reporter () =
-  match Sys.getenv "OVH_LOGS_URL" with
-  | None ->
-    return Logs_async_reporter.(reporter ~pp_header:pp_systemd_header ())
-  | Some url ->
-    udp_reporter ~logs:(Uri.of_string url) ()
+  match Option.map (Sys.getenv "OVH_LOGS_URL") ~f:Uri.of_string with
+  | None -> return Logs_async_reporter.(reporter ~pp_header:pp_systemd_header ())
+  | Some ovh_url -> udp_reporter ~ovh_url ()
 
 (*---------------------------------------------------------------------------
    Copyright (c) 2019 Vincent Bernardoff

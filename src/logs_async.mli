@@ -19,9 +19,9 @@
 
 open Async_kernel
 
-type 'a log = ('a, unit Deferred.t) Logs.msgf -> unit Deferred.t
 (** The type for Async log functions. The returned thread only proceeds
     once the log operation is over. See {!Logs.log}. *)
+type 'a log = ('a, unit Deferred.t) Logs.msgf -> unit Deferred.t
 
 val msg : ?src:Logs.src -> Logs.level -> 'a log
 (** See {!Logs.msg}. *)
@@ -41,20 +41,35 @@ val info : ?src:Logs.src -> 'a log
 val debug : ?src:Logs.src -> 'a log
 (** See {!Logs.debug}. *)
 
-val kmsg : (unit -> 'b Deferred.t) -> ?src:Logs.src ->
-  Logs.level -> ('a, 'b Deferred.t) Logs.msgf -> 'b Deferred.t
+val kmsg :
+  (unit -> 'b Deferred.t) ->
+  ?src:Logs.src ->
+  Logs.level ->
+  ('a, 'b Deferred.t) Logs.msgf ->
+  'b Deferred.t
 (** See {!Logs.kmsg}. *)
 
 (** {2 Logging {!result} value [Error]s} *)
 
-val on_error : ?src:Logs.src -> ?level:Logs.level -> ?header:string ->
-  ?tags:Logs.Tag.set -> pp:(Format.formatter -> 'b -> unit) ->
-  use:('b -> 'a Deferred.t) -> ('a, 'b) result Deferred.t -> 'a Deferred.t
+val on_error :
+  ?src:Logs.src ->
+  ?level:Logs.level ->
+  ?header:string ->
+  ?tags:Logs.Tag.set ->
+  pp:(Format.formatter -> 'b -> unit) ->
+  use:('b -> 'a Deferred.t) ->
+  ('a, 'b) result Deferred.t ->
+  'a Deferred.t
 (** See {!Logs.on_error}. *)
 
-val on_error_msg : ?src:Logs.src -> ?level:Logs.level -> ?header:string ->
-  ?tags:Logs.Tag.set -> use:(unit -> 'a Deferred.t) ->
-  ('a, [`Msg of string]) result Deferred.t -> 'a Deferred.t
+val on_error_msg :
+  ?src:Logs.src ->
+  ?level:Logs.level ->
+  ?header:string ->
+  ?tags:Logs.Tag.set ->
+  use:(unit -> 'a Deferred.t) ->
+  ('a, [`Msg of string]) result Deferred.t ->
+  'a Deferred.t
 (** See {!Logs.on_error_msg}. *)
 
 (** {1 Source specific log functions} *)
@@ -78,20 +93,33 @@ module type LOG = sig
   val debug : 'a log
   (** See {!Logs.debug}. *)
 
-  val kmsg : ?over:(unit -> unit) -> (unit -> 'b Deferred.t) ->
-    Logs.level -> ('a, 'b Deferred.t) Logs.msgf -> 'b Deferred.t
+  val kmsg :
+    ?over:(unit -> unit) ->
+    (unit -> 'b Deferred.t) ->
+    Logs.level ->
+    ('a, 'b Deferred.t) Logs.msgf ->
+    'b Deferred.t
   (** See {!Logs.kmsg}. *)
 
   (** {2 Logging {!result} value [Error]s} *)
 
-  val on_error : ?level:Logs.level -> ?header:string ->
-    ?tags:Logs.Tag.set -> pp:(Format.formatter -> 'b -> unit) ->
-    use:('b -> 'a Deferred.t) -> ('a, 'b) result Deferred.t -> 'a Deferred.t
+  val on_error :
+    ?level:Logs.level ->
+    ?header:string ->
+    ?tags:Logs.Tag.set ->
+    pp:(Format.formatter -> 'b -> unit) ->
+    use:('b -> 'a Deferred.t) ->
+    ('a, 'b) result Deferred.t ->
+    'a Deferred.t
   (** See {!Logs.on_error}. *)
 
-  val on_error_msg : ?level:Logs.level -> ?header:string ->
-    ?tags:Logs.Tag.set -> use:(unit -> 'a Deferred.t) -> ('a, [`Msg of
-    string]) result Deferred.t -> 'a Deferred.t
+  val on_error_msg :
+    ?level:Logs.level ->
+    ?header:string ->
+    ?tags:Logs.Tag.set ->
+    use:(unit -> 'a Deferred.t) ->
+    ('a, [`Msg of string]) result Deferred.t ->
+    'a Deferred.t
   (** See {!Logs.on_error_msg}. *)
 end
 

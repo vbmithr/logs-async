@@ -9,14 +9,13 @@ build: [ "dune" "build" "-j" jobs "-p" name ]
 depends: [
   "dune" {>= "1.11.4"}
   "logs" {>= "0.7"}
-  "logs-async" {= version}
-  "logs-async-reporter" {= version}
+  "logs-async"
+  "logs-async-reporter"
   "ptime" {>= "0.8.5"}
-  "syslog-rfc5424" {= version}
+  "syslog-rfc5424"
   "uri" {>= "3.1.0"}
   "core" {>= "v0.12.0"}
   "async" {>= "v0.12.0"}
-  "warp10-async" {= version}
 ]
 synopsis: "Logs reporter compatible with Async's threads"
 description: """

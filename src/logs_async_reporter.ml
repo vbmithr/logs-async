@@ -6,16 +6,49 @@
 open Core
 open Async
 
-let pp_systemd_header ppf (l, _) = Format.fprintf ppf "[%a] " Logs.pp_level l
+let app_style = `Cyan
+let err_style = `Red
+let warn_style = `Yellow
+let info_style = `Blue
+let debug_style = `Green
 
-type format_reporter =
-  ?pp_header:(Logs.level * string option) Fmt.t ->
-  ?app:Format.formatter ->
-  ?dst:Format.formatter ->
-  unit ->
-  Logs.reporter
+let pp_header ~pp_h ppf (s, l, h, _t) =
+  match l with
+  | Logs.App -> (
+    match h with
+    | None -> ()
+    | Some h -> Fmt.pf ppf "[%a] " Fmt.(styled app_style string) h )
+  | Logs.Error ->
+      pp_h ppf err_style s (match h with None -> "ERROR" | Some h -> h)
+  | Logs.Warning ->
+      pp_h ppf warn_style s (match h with None -> "WARNING" | Some h -> h)
+  | Logs.Info ->
+      pp_h ppf info_style s (match h with None -> "INFO" | Some h -> h)
+  | Logs.Debug ->
+      pp_h ppf debug_style s (match h with None -> "DEBUG" | Some h -> h)
 
-let mk_async_reporter ?pp_header (reporter : format_reporter) =
+let pp_exec_header =
+  let pp_h ppf style s h =
+    Fmt.pf ppf " %a %15s [%a] " Int63.pp
+      Time_stamp_counter.(now () |> to_int63)
+      (Logs.Src.name s)
+      Fmt.(styled style string)
+      h in
+  pp_header ~pp_h
+
+let format_reporter ?(pp_header = pp_exec_header) ?(app = Format.std_formatter)
+    ?(dst = Format.err_formatter) () =
+  let report src level ~over k msgf =
+    let k _ = over () ; k () in
+    msgf
+    @@ fun ?header ?tags fmt ->
+    let ppf = match level with Logs.App -> app | _ -> dst in
+    Format.kfprintf k ppf
+      ("%a@[" ^^ fmt ^^ "@]@.")
+      pp_header (src, level, header, tags) in
+  ({report} : Logs.reporter)
+
+let reporter () =
   let buf_fmt ~like =
     let b = Buffer.create 512 in
     ( Fmt.with_buffer ~like b,
@@ -24,7 +57,7 @@ let mk_async_reporter ?pp_header (reporter : format_reporter) =
         Buffer.reset b ; m ) in
   let app, app_flush = buf_fmt ~like:Fmt.stdout in
   let dst, dst_flush = buf_fmt ~like:Fmt.stderr in
-  let reporter = reporter ?pp_header ?app:(Some app) ?dst:(Some dst) () in
+  let reporter = format_reporter ?app:(Some app) ?dst:(Some dst) () in
   let stdout = Lazy.force Writer.stdout in
   let stderr = Lazy.force Writer.stderr in
   let report src level ~over k msgf =
@@ -34,14 +67,14 @@ let mk_async_reporter ?pp_header (reporter : format_reporter) =
         | Logs.App -> Writer.write stdout (app_flush ())
         | _ -> Writer.write stderr (dst_flush ()) in
       let finally () =
-        Writer.flushed stdout >>= fun () -> Writer.flushed stderr >>| over in
+        match level with
+        | Logs.App -> Writer.flushed stdout >>| over
+        | _ -> Writer.flushed stderr >>| over in
       don't_wait_for
       @@ Monitor.protect (fun () -> write () ; Deferred.unit) ~finally ;
       k () in
-    reporter.Logs.report src level ~over:(fun () -> ()) k msgf in
+    reporter.report src level ~over:(fun () -> ()) k msgf in
   {Logs.report}
-
-let reporter ?pp_header () = mk_async_reporter ?pp_header Logs_fmt.reporter
 
 let level_arg =
   let complete _ ~part =
@@ -51,7 +84,7 @@ let level_arg =
   Command.Arg_type.create ~complete (fun s ->
       match Logs.level_of_string s with
       | Ok l -> l
-      | Error (`Msg msg) -> failwithf "Unknown level %s" msg ())
+      | Error (`Msg msg) -> failwithf "Unknown level %s" msg () )
 
 let set_level_via_param ?(arg_name = "log-level") ?(doc = "LEVEL The log level")
     src =
@@ -62,7 +95,30 @@ let set_level_via_param ?(arg_name = "log-level") ?(doc = "LEVEL The log level")
       match (l, src) with
       | None, _ -> ()
       | Some l, [] -> Logs.set_level ~all:true l
-      | Some l, srcs -> List.iter srcs ~f:(fun src -> Logs.Src.set_level src l))
+      | Some l, srcs -> List.iter srcs ~f:(fun src -> Logs.Src.set_level src l)
+      )
+
+let parseColor = function
+  | "never" -> `Never
+  | "always" -> `Always
+  | "auto" -> `Auto
+  | msg -> failwithf "Unknown color spec %s" msg ()
+
+let color_arg =
+  let complete _ ~part =
+    List.filter ~f:(String.is_prefix ~prefix:part) ["never"; "always"; "auto"]
+  in
+  Command.Arg_type.create ~complete parseColor
+
+let set_color_via_param ?(arg_name = "color")
+    ?(doc = "STRING Use ANSI color in terminal (never|always|auto)") () =
+  let open Command.Param in
+  map
+    (flag arg_name (optional color_arg) ~doc)
+    ~f:(function
+      | Some `Never -> Fmt_tty.setup_std_outputs ~style_renderer:`None ()
+      | Some `Always -> Fmt_tty.setup_std_outputs ~style_renderer:`Ansi_tty ()
+      | Some `Auto | None -> Fmt_tty.setup_std_outputs () )
 
 (*---------------------------------------------------------------------------
    Copyright (c) 2019 Vincent Bernardoff

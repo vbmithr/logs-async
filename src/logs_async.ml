@@ -38,14 +38,14 @@ let on_error ?src ?(level = Logs.Error) ?header ?tags ~pp ~use t =
     | Ok v -> Deferred.return v
     | Error e ->
         kmsg (fun () -> use e) ?src level
-        @@ fun m -> m ?header ?tags "@[%a@]" pp e)
+        @@ fun m -> m ?header ?tags "@[%a@]" pp e )
 
 let on_error_msg ?src ?(level = Logs.Error) ?header ?tags ~use t =
   Deferred.bind t ~f:(function
     | Ok v -> Deferred.return v
     | Error (`Msg e) ->
         kmsg use ?src level
-        @@ fun m -> m ?header ?tags "@[%a@]" Logs.pp_print_text e)
+        @@ fun m -> m ?header ?tags "@[%a@]" Logs.pp_print_text e )
 
 (* Source specific functions *)
 

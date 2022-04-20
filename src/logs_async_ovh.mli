@@ -5,19 +5,19 @@
 
 open Async
 
-val udp_reporter :
+val rfc5424_reporter :
   ?defs:Rfc5424.Tag.tydef list ->
   ?ovh_url:Uri.t ->
   unit ->
   Logs.reporter Deferred.t
-(** [udp_reporter ~logs ()] is a reporter that writes to disk in
-    RFC5424 format (syslog) and additionally reports to OVH's Logs Data
-    Platform at [uri] with OVH token [token] over UDP. *)
+(** [rfc5424_reporter ()] is a reporter that writes to disk in RFC5424
+    format and additionally reports to OVH's Logs Data Platform at
+    [ovh_url] over UDP. *)
 
-val udp_or_systemd_reporter : unit -> Logs.reporter Deferred.t
-(** [upd_or_systemd_reporter] reports to OVH if [OVH_LOGS_URL]
-    environment variable is defined, or reports to stdout with a format
-    suitable for systemd's journalctl otherwise. *)
+val rfc5424_or_systemd_reporter : unit -> Logs.reporter Deferred.t
+(** [rfc5424_or_systemd_reporter] reports in RFC5424 format if
+    [RFC5424] environment variable is defined, or reports to stdout/stderr
+    with a format suitable for systemd's journalctl otherwise. *)
 
 (*---------------------------------------------------------------------------
    Copyright (c) 2019 Vincent Bernardoff

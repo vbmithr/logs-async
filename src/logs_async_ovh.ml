@@ -4,6 +4,7 @@
   ---------------------------------------------------------------------------*)
 
 open Core
+module Time_ns = Time_ns_unix
 open Async
 
 let ovhtoken =
@@ -34,8 +35,8 @@ let maybe_send sendf level msg =
   | Some (writer, fd) -> ignore (writer (Iobuf.of_string msg) fd)
 
 let ptime_of_time t =
-  let ns = Time_ns.to_int63_ns_since_epoch t in
-  Option.value_exn (Ptime.of_float_s (Int63.to_float ns /. 1e9))
+  let span = Time_ns.to_span_since_epoch t in
+  Option.value_exn (Ptime.of_float_s (Time_ns.Span.to_sec span))
 
 let make_reporter ?(defs = []) ?ovh_url logf =
   let token =
@@ -48,7 +49,7 @@ let make_reporter ?(defs = []) ?ovh_url logf =
     else
       [ Rfc5424.create_sd_element
           ~defs:[Rfc5424.Tag.string ovhtoken]
-          ~section:"tokens" ~tags:tokens ] in
+          "tokens" tokens ] in
   let hostname = Unix.gethostname () in
   let app_name = Filename.basename Sys.executable_name in
   let procid = Pid.to_string (Unix.getpid ()) in
@@ -56,13 +57,14 @@ let make_reporter ?(defs = []) ?ovh_url logf =
   let stdout = Lazy.force Writer.stdout in
   let stderr = Lazy.force Writer.stderr in
   let report_monitor = Monitor.create () in
+  let c = Lazy.force Time_stamp_counter.calibrator in
   let report src level ~over k msgf =
     let m ?header:_ ?(tags = Logs.Tag.empty) fmt =
-      let othertags = Rfc5424.create_sd_element ~defs ~section:"logs" ~tags in
+      let othertags = Rfc5424.create_sd_element ~defs "logs" tags in
       let structured_data =
         if Logs.Tag.is_empty tags then tokens else othertags :: tokens in
       let ts, tz_offset_s =
-        let ts = Time_ns.now () in
+        let ts = Time_stamp_counter.(now () |> to_time_ns ~calibrator:c) in
         (ts, Time_ns.(Span.to_int_sec (utc_offset ts ~zone))) in
       let pf =
         Rfc5424.create ~tz_offset_s ~ts:(ptime_of_time ts) ~hostname ~procid
@@ -80,7 +82,7 @@ let make_reporter ?(defs = []) ?ovh_url logf =
     msgf m in
   Deferred.return {Logs.report}
 
-let udp_reporter ?defs ?ovh_url () =
+let rfc5424_reporter ?defs ?ovh_url () =
   ( match ovh_url with
   | None -> Deferred.return None
   | Some url ->
@@ -91,11 +93,12 @@ let udp_reporter ?defs ?ovh_url () =
   >>= fun sendf ->
   make_reporter ?defs ?ovh_url (fun l m -> maybe_send sendf l m ; Deferred.unit)
 
-let udp_or_systemd_reporter () =
-  match Option.map (Sys.getenv "OVH_LOGS_URL") ~f:Uri.of_string with
-  | None ->
-      return Logs_async_reporter.(reporter ~pp_header:pp_systemd_header ())
-  | Some ovh_url -> udp_reporter ~ovh_url ()
+let rfc5424_or_systemd_reporter () =
+  match Option.map ~f:Uri.of_string (Sys.getenv "RFC5424") with
+  | None -> return (Logs_async_reporter.reporter ())
+  | Some url ->
+      let ovh_url = Option.map (Uri.scheme url) ~f:(fun _ -> url) in
+      rfc5424_reporter ?ovh_url ()
 
 (*---------------------------------------------------------------------------
    Copyright (c) 2019 Vincent Bernardoff

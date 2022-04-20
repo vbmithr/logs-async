@@ -8,7 +8,7 @@
  (name logs_async_reporter)
  (public_name logs-async-reporter)
  (modules Logs_async_reporter)
- (libraries logs.fmt core async))
+ (libraries fmt.tty logs.fmt core_kernel async))
 
 (library
  (name logs_async_ovh)

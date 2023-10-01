@@ -1,2 +1,3 @@
-profile = compact
-break-separators = after
+profile = janestreet
+version = 0.26.0
+

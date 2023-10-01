@@ -1,0 +1,4 @@
+(library
+ (name logs_async)
+ (public_name logs-async)
+ (libraries logs async_kernel))

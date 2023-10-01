@@ -17,7 +17,7 @@ depends: [
   "ocaml"
   "dune" {>= "3.10"}
   "logs" {>= "0.7.0"}
-  "async_kernel" {>= "0.16"}
+  "async_kernel" {>= "v0.16"}
   "odoc" {with-doc}
 ]
 build: [

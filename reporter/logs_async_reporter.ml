@@ -54,10 +54,10 @@ let pp_exec_header_nocolor =
 ;;
 
 let format_reporter
-  ?(pp_header = pp_exec_header)
-  ?(app = Format.std_formatter)
-  ?(dst = Format.err_formatter)
-  ()
+      ?(pp_header = pp_exec_header)
+      ?(app = Format.std_formatter)
+      ?(dst = Format.err_formatter)
+      ()
   =
   let report src level ~over k msgf =
     let k _ =
@@ -87,38 +87,42 @@ let json_reporter () =
     @@ fun ?header ?tags fmt ->
     Format.kfprintf
       (fun _fmt ->
-        let msg = Format.flush_str_formatter () in
-        let currentTS =
-          Time_stamp_counter.(now () |> to_time_ns ~calibrator:(Lazy.force calibrator))
-        in
-        let assc = [] in
-        let add_tag (Logs.Tag.V (def, x)) a =
-          let name = Logs.Tag.name def in
-          Format.kasprintf (fun v -> (name, `String v) :: a) "%a" (Logs.Tag.printer def) x
-        in
-        let assc =
-          match tags with
-          | None -> assc
-          | Some tags -> Logs.Tag.fold add_tag tags assc
-        in
-        let assc =
-          match header with
-          | None -> assc
-          | Some h -> ("hdr", `String h) :: assc
-        in
-        let assc =
-          List.rev_append
-            [ "msg", `String msg
-            ; "level", `String (Logs.level_to_string (Some level))
-            ; "caller", `String (Logs.Src.name src)
-            ; "ts", `Float Time_ns.(to_span_since_epoch currentTS |> Span.to_sec)
-            ]
-            assc
-        in
-        Buffer.clear buf;
-        Yojson.Safe.to_buffer ~std:true buf (`Assoc assc);
-        Writer.write_line (Lazy.force Writer.stdout) (Buffer.contents buf);
-        k ())
+         let msg = Format.flush_str_formatter () in
+         let currentTS =
+           Time_stamp_counter.(now () |> to_time_ns ~calibrator:(Lazy.force calibrator))
+         in
+         let assc = [] in
+         let add_tag (Logs.Tag.V (def, x)) a =
+           let name = Logs.Tag.name def in
+           Format.kasprintf
+             (fun v -> (name, `String v) :: a)
+             "%a"
+             (Logs.Tag.printer def)
+             x
+         in
+         let assc =
+           match tags with
+           | None -> assc
+           | Some tags -> Logs.Tag.fold add_tag tags assc
+         in
+         let assc =
+           match header with
+           | None -> assc
+           | Some h -> ("hdr", `String h) :: assc
+         in
+         let assc =
+           List.rev_append
+             [ "msg", `String msg
+             ; "level", `String (Logs.level_to_string (Some level))
+             ; "caller", `String (Logs.Src.name src)
+             ; "ts", `Float Time_ns.(to_span_since_epoch currentTS |> Span.to_sec)
+             ]
+             assc
+         in
+         Buffer.clear buf;
+         Yojson.Safe.to_buffer ~std:true buf (`Assoc assc);
+         Writer.write_line (Lazy.force Writer.stdout) (Buffer.contents buf);
+         k ())
       Format.str_formatter
       fmt
   in
@@ -163,8 +167,8 @@ let output_reporter writef =
       don't_wait_for
       @@ Monitor.protect
            (fun () ->
-             write ();
-             Deferred.unit)
+              write ();
+              Deferred.unit)
            ~finally;
       k ()
     in
@@ -176,10 +180,10 @@ let output_reporter writef =
 open Zstandard.Streaming
 
 let zstd_reporter
-  ?(zstd = Compression.create 3)
-  ?(inbuf = Bigbuffer.create 4096)
-  ?(outbuf = Bigstring.create 4096)
-  w
+      ?(zstd = Compression.create 3)
+      ?(inbuf = Bigbuffer.create 4096)
+      ?(outbuf = Bigstring.create 4096)
+      w
   =
   let outlen = Bigstring.length outbuf in
   let rec close_reporter () =
@@ -233,8 +237,8 @@ let zstd_reporter
       don't_wait_for
       @@ Monitor.protect
            (fun () ->
-             write ();
-             Deferred.unit)
+              write ();
+              Deferred.unit)
            ~finally;
       k ()
     in
@@ -281,9 +285,9 @@ let color_arg =
 ;;
 
 let set_color_via_param
-  ?(arg_name = "color")
-  ?(doc = "STRING Use ANSI color in terminal (never|always|auto)")
-  ()
+      ?(arg_name = "color")
+      ?(doc = "STRING Use ANSI color in terminal (never|always|auto)")
+      ()
   =
   let open Command.Param in
   map

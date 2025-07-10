@@ -26,7 +26,7 @@ let kmsg k ?(src = Logs.default) level msgf =
     else ();
     let iv = Ivar.create () in
     let k () = Deferred.bind (Ivar.read iv) ~f:k in
-    let over () = Ivar.fill iv () in
+    let over () = Ivar.fill_exn iv () in
     Logs.report src level ~over k msgf
 ;;
 
@@ -49,7 +49,7 @@ let on_error_msg ?src ?(level = Logs.Error) ?header ?tags ~use t =
   Deferred.bind t ~f:(function
     | Ok v -> Deferred.return v
     | Error (`Msg e) ->
-      kmsg use ?src level @@ fun m -> m ?header ?tags "@[%a@]" Logs.pp_print_text e)
+      kmsg use ?src level @@ fun m -> m ?header ?tags "@[%a@]" Format.pp_print_text e)
 ;;
 
 (* Source specific functions *)

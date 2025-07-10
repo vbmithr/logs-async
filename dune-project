@@ -25,8 +25,8 @@ Logs.reporter.")
  (depends
    ocaml
    dune
-  (logs (>= 0.7.0))
-  (async_kernel (>= v0.16)))
+  (logs (>= 0.9.0))
+  (async_kernel (>= v0.17)))
  (tags
   (async logs)))
 
@@ -37,11 +37,11 @@ Logs.reporter.")
  (depends
    ocaml
    dune
-  (logs (>= 0.7.0))
+  (logs (>= 0.9.0))
   (fmt (>= 0.9.0))
-  (core (>= v0.16))
-  (async (>= v0.16))
-  (zstandard (>= v0.16))
+  (core (>= v0.17))
+  (async (>= v0.17))
+  (zstandard (>= v0.17))
   (yojson (>= 2.1.0))
  )
  (tags

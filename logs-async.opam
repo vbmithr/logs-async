@@ -16,8 +16,8 @@ bug-reports: "https://github.com/vbmithr/logs-async/issues"
 depends: [
   "ocaml"
   "dune" {>= "3.10"}
-  "logs" {>= "0.7.0"}
-  "async_kernel" {>= "v0.16"}
+  "logs" {>= "0.9.0"}
+  "async_kernel" {>= "v0.17"}
   "odoc" {with-doc}
 ]
 build: [

@@ -40,10 +40,12 @@ Logs.reporter.")
   (logs (>= 0.9.0))
   (fmt (>= 0.9.0))
   (core (>= v0.17))
+  (core_unix (>= v0.17))
   (async (>= v0.17))
   (zstandard (>= v0.17))
   (yojson (>= 2.1.0))
  )
+ (depopts ocaml-systemd)
  (tags
   (async logs)))
 

@@ -129,10 +129,149 @@ let json_reporter () =
   { Logs.report }
 ;;
 
-let reporter () =
-  match Sys.getenv "KUBERNETES_SERVICE_HOST", Sys.getenv "DISABLE_JSON_LOGGING" with
-  | None, _ | Some _, Some _ -> format_reporter ()
-  | Some _, None -> json_reporter ()
+(* An empty value is not a value: a variable blanked rather than unset by
+   whatever spawned us -- and spawners do that -- must read as absent,
+   not as a setting. *)
+let getenv_nonempty name =
+  match Sys.getenv name with
+  | Some "" | None -> None
+  | Some v -> Some v
+;;
+
+(* systemd stamps every entry with the wall clock, the pid, the unit and
+   the syslog identifier, and keeps the level in PRIORITY -- so of what
+   {!pp_exec_header} prints, only the Logs source is news to the journal.
+   That one travels in the message text, where journalctl's default
+   output shows it, and again as an indexed field so it can be filtered
+   on. *)
+let syslog_priority = function
+  | Logs.App -> 5 (* notice: program output is normal, but significant *)
+  | Logs.Error -> 3
+  | Logs.Warning -> 4
+  | Logs.Info -> 6
+  | Logs.Debug -> 7
+;;
+
+(* Journal field names are uppercase alphanumerics and underscores, and
+   may not start with an underscore -- that namespace is journald's own,
+   for the fields it attests to. A tag name is arbitrary, so it is
+   sanitised and prefixed rather than trusted. *)
+let journal_field_of_tag name =
+  let keep c =
+    match c with
+    | 'A' .. 'Z' | '0' .. '9' -> c
+    | _ -> '_'
+  in
+  "TAG_" ^ String.map (String.uppercase name) ~f:keep
+;;
+
+(* The identifier is what journalctl shows before the pid and what
+   [journalctl -t] matches on. For output piped to the journal systemd
+   supplies it from the unit's [SyslogIdentifier=]; a native send has to
+   state it, and a unit that wants more than the executable name (one
+   binary serving several units, say) passes it in the environment. *)
+let default_identifier () =
+  match getenv_nonempty "SYSLOG_IDENTIFIER" with
+  | Some id -> id
+  | None -> Filename.basename Sys.executable_name
+;;
+
+let journald_reporter ?identifier () =
+  let identifier = Option.value_or_thunk identifier ~default:default_identifier in
+  let buf = Buffer.create 1024 in
+  let ppf = Format.formatter_of_buffer buf in
+  let report src level ~over k msgf =
+    msgf
+    @@ fun ?header ?tags fmt ->
+    let fields () =
+      let add_tag (Logs.Tag.V (def, x)) a =
+        Format.kasprintf
+          (fun v -> (journal_field_of_tag (Logs.Tag.name def), v) :: a)
+          "%a"
+          (Logs.Tag.printer def)
+          x
+      in
+      let tags =
+        match tags with
+        | None -> []
+        | Some tags -> Logs.Tag.fold add_tag tags []
+      in
+      ("MESSAGE", Buffer.contents buf)
+      :: ("PRIORITY", Int.to_string (syslog_priority level))
+      :: ("SYSLOG_IDENTIFIER", identifier)
+      :: ("LOGS_SRC", Logs.Src.name src)
+      :: tags
+    in
+    let k _ =
+      Format.pp_print_flush ppf ();
+      Journal_backend.send (fields ());
+      over ();
+      k ()
+    in
+    (* The level is PRIORITY and the time is journald's, but a header a
+       call site set by hand is neither, so it stays in the text. *)
+    let pp_header ppf = function
+      | None -> ()
+      | Some h -> Format.fprintf ppf "[%s] " h
+    in
+    Buffer.clear buf;
+    Format.kfprintf
+      k
+      ppf
+      ("%s: %a@[" ^^ fmt ^^ "@]")
+      (Logs.Src.name src)
+      pp_header
+      header
+  in
+  { Logs.report }
+;;
+
+(* Presence of an environment variable proves nothing here: children
+   inherit it. [INVOCATION_ID] in particular is set for every process in
+   a graphical session whose display manager runs as a unit, and
+   [JOURNAL_STREAM] survives any redirection of the stream it names. So
+   ask the question that actually matters -- is stderr the journal? --
+   the way systemd's own log.c does, by matching the "device:inode" the
+   variable carries against what stderr really is. *)
+let stderr_is_journal () =
+  match getenv_nonempty "JOURNAL_STREAM" with
+  | None -> false
+  | Some v ->
+    (match String.lsplit2 (String.strip v) ~on:':' with
+     | None -> false
+     | Some (dev, ino) ->
+       (try
+          let st = Core_unix.fstat Core_unix.stderr in
+          String.equal dev (Int.to_string st.st_dev)
+          && String.equal ino (Int.to_string st.st_ino)
+        with
+        | _ -> false))
+;;
+
+(* An explicit [LOGS_FORMAT] settles it; otherwise the environment does,
+   and a plain terminal keeps the timestamped, coloured format. A typo in
+   the variable is refused rather than silently ignored: it is read once,
+   at startup, and the alternative is discovering the mistake by missing
+   logs. *)
+let reporter ?identifier () =
+  let auto () =
+    match Sys.getenv "KUBERNETES_SERVICE_HOST", Sys.getenv "DISABLE_JSON_LOGGING" with
+    | Some _, None -> json_reporter ()
+    | None, _ | Some _, Some _ ->
+      if Journal_backend.available && stderr_is_journal ()
+      then journald_reporter ?identifier ()
+      else format_reporter ()
+  in
+  match getenv_nonempty "LOGS_FORMAT" with
+  | None | Some "auto" -> auto ()
+  | Some ("journal" | "journald") ->
+    if Journal_backend.available
+    then journald_reporter ?identifier ()
+    else failwith "LOGS_FORMAT=journal, but this build has no systemd support"
+  | Some "json" -> json_reporter ()
+  | Some ("plain" | "text") -> format_reporter ()
+  | Some other ->
+    failwithf "LOGS_FORMAT: expected auto, journal, json or plain, got %S" other ()
 ;;
 
 let output_reporter writef =

@@ -6,7 +6,29 @@ open Core
 open Async
 open Zstandard.Streaming
 
-val reporter : unit -> Logs.reporter
+(** [reporter ()] picks a format from the environment: [LOGS_FORMAT] if
+    it is set (["auto"], ["journal"], ["json"] or ["plain"]), else the
+    systemd journal when stderr is the journal, JSON under Kubernetes,
+    and the human-readable stderr format otherwise. *)
+val reporter : ?identifier:string -> unit -> Logs.reporter
+
+(** [journald_reporter ()] submits entries to the systemd journal
+    natively, letting journald supply the timestamp, pid and unit, and
+    carrying the level as PRIORITY, the Logs source as LOGS_SRC and each
+    tag as a TAG_-prefixed field. [identifier] defaults to
+    [$SYSLOG_IDENTIFIER], then to the executable's basename.
+
+    Without [ocaml-systemd] at build time this reporter drops every
+    entry; {!reporter} never selects it in such a build. *)
+val journald_reporter : ?identifier:string -> unit -> Logs.reporter
+
+(** [stderr_is_journal ()] is whether stderr is the stream systemd named
+    in [$JOURNAL_STREAM], matched by device and inode. Both that variable
+    and [$INVOCATION_ID] are inherited by children -- and on a host whose
+    display manager runs as a unit, every process in the session has
+    them -- so their mere presence is not the question. *)
+val stderr_is_journal : unit -> bool
+
 val json_reporter : unit -> Logs.reporter
 val output_reporter : (bytes -> int -> int -> unit) -> Logs.reporter
 

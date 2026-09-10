@@ -1,4 +1,16 @@
 (library
  (name logs_async_reporter)
  (public_name logs-async-reporter)
- (libraries fmt.tty logs.fmt core async zstandard yojson))
+ (libraries
+  fmt.tty
+  logs.fmt
+  core
+  core_unix
+  async
+  zstandard
+  yojson
+  (select
+   journal_backend.ml
+   from
+   (systemd -> journal_backend.systemd.ml)
+   (-> journal_backend.dummy.ml))))

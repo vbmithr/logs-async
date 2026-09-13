@@ -15,7 +15,9 @@ val reporter : ?identifier:string -> unit -> Logs.reporter
 (** [journald_reporter ()] submits entries to the systemd journal
     natively, letting journald supply the timestamp, pid and unit, and
     carrying the level as PRIORITY, the Logs source as LOGS_SRC and each
-    tag as a TAG_-prefixed field. [identifier] defaults to
+    tag as a TAG_-prefixed field. MESSAGE holds the message alone: the
+    source is in LOGS_SRC, so it is not repeated in the text (filter with
+    [journalctl LOGS_SRC=...]). [identifier] defaults to
     [$SYSLOG_IDENTIFIER], then to the executable's basename.
 
     Without [ocaml-systemd] at build time this reporter drops every

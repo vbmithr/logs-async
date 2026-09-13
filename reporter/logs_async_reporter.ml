@@ -218,8 +218,7 @@ let journald_reporter ?identifier () =
     Format.kfprintf
       k
       ppf
-      ("%s: %a@[" ^^ fmt ^^ "@]")
-      (Logs.Src.name src)
+      ("%a@[" ^^ fmt ^^ "@]")
       pp_header
       header
   in
